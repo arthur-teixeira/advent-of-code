@@ -29,73 +29,84 @@ impl Report {
         true
     }
 
-    fn ignore_at(&self, i: usize) -> Vec<usize> {
-        let mut new = Vec::new();
-        new.copy_from_slice(&self.0[0..i]);
-        new.copy_from_slice(&self.0[i + 1..]);
-
-        new
-    }
-
-    fn is_safe_dampened(&self) -> bool {
-        let mut descending = false;
+    pub fn is_safe_dampened(&self) -> bool {
         let mut tested: HashSet<usize> = HashSet::new();
         let mut queue: VecDeque<usize> = VecDeque::new();
 
-        let mut is_valid = false;
-        let mut first = true;
-        'outer: while !is_valid || first {
-            if !first && queue.len() == 0 {
-                break;
-            }
+        tested.insert(0);
+        queue.push_back(0);
 
+        let mut first = true;
+        let report = &self.0;
+        let mut is_valid = false;
+        'outer: while first || queue.len() > 0 {
             first = false;
             let i_to_ignore = queue.pop_front();
-            let report;
-            if let Some(ignored) = i_to_ignore {
-                let new = self.ignore_at(ignored);
-                report = &new;
-            } else {
-                report = &self.0;
+
+            let mut descending: Option<bool> = None;
+            for i in 1..report.len() {
+                let prev_level;
+                let level = report[i];
+                if let Some(ignored) = i_to_ignore {
+                    if i == ignored {
+                        continue;
+                    }
+
+                    if i - 1 == ignored {
+                        if i == 1 {
+                            continue;
+                        }
+
+                        prev_level = report[i - 2];
+                    } else {
+                        prev_level = report[i - 1];
+                    }
+                } else {
+                    prev_level = report[i - 1];
+                }
+
+                if level.abs_diff(prev_level) > 3 || level == prev_level {
+                    if !tested.contains(&(i - 1)) {
+                        tested.insert(i - 1);
+                        queue.push_back(i - 1);
+                    }
+                    if !tested.contains(&i) {
+                        tested.insert(i);
+                        queue.push_back(i);
+                    }
+                    is_valid = false;
+                    continue 'outer;
+                }
+
+                match descending {
+                    Some(is_descending) => {
+                        if (is_descending && level >= prev_level)
+                            || (!is_descending && level <= prev_level)
+                        {
+                            if !tested.contains(&(i - 1)) {
+                                tested.insert(i - 1);
+                                queue.push_back(i - 1);
+                            }
+                            if !tested.contains(&i) {
+                                tested.insert(i);
+                                queue.push_back(i);
+                            }
+
+                            is_valid = false;
+                            continue 'outer;
+                        } else {
+                            is_valid = true;
+                        }
+                    }
+                    None => {
+                        descending = Some(level < prev_level);
+                        continue;
+                    }
+                }
             }
 
-            'inner: for (i, level) in report.iter().enumerate() {
-                if i == 0 {
-                    continue 'inner;
-                }
-
-                let prev_level = self.0[i - 1];
-                if i == 1 {
-                    descending = level < &prev_level;
-                }
-
-                if level.abs_diff(prev_level) > 3 {
-                    if !tested.contains(&i) {
-                        tested.insert(i);
-                        queue.push_back(i);
-                    }
-                    if !tested.contains(&(i - 1)) {
-                        tested.insert(i - 1);
-                        queue.push_back(i - 1);
-                    }
-                    continue 'outer;
-                }
-
-                if (descending && level >= &prev_level) || (!descending && level <= &prev_level) {
-                    if !tested.contains(&i) {
-                        tested.insert(i);
-                        queue.push_back(i);
-                    }
-                    if !tested.contains(&(i - 1)) {
-                        tested.insert(i - 1);
-                        queue.push_back(i - 1);
-                    }
-
-                    continue 'outer;
-                }
-
-                is_valid = true;
-                break 'outer;
+            if is_valid {
+                return true;
             }
         }
 
@@ -121,4 +132,26 @@ fn part2(reports: &Vec<Report>) -> usize {
         .iter()
         .filter(|r| r.is_safe_dampened())
         .fold(0, |acc, _| acc + 1)
+}
+
+#[cfg(test)]
+mod day2_tests {
+    use super::Report;
+
+    #[test]
+    fn part2_edge_cases() {
+        assert_eq!(
+            Report(vec![19, 20, 21, 22, 23, 25, 26, 30]).is_safe_dampened(),
+            false
+        );
+        assert_eq!(
+            Report(vec![40, 41, 41, 43, 45, 43]).is_safe_dampened(),
+            false
+        );
+
+        assert_eq!(
+            Report(vec![43, 40, 41, 44, 45, 46, 48, 51]).is_safe_dampened(),
+            true
+        );
+    }
 }
