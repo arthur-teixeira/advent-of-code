@@ -142,7 +142,7 @@ mod day2_tests {
     fn part2_edge_cases() {
         assert_eq!(
             Report(vec![19, 20, 21, 22, 23, 25, 26, 30]).is_safe_dampened(),
-            false
+            true
         );
         assert_eq!(
             Report(vec![40, 41, 41, 43, 45, 43]).is_safe_dampened(),
