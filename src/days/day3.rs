@@ -26,7 +26,7 @@ struct Lexer {
 }
 
 impl Lexer {
-    fn new(input: String) -> Self {
+    fn new(input: &String) -> Self {
         Self {
             text: input.chars().collect(),
             pos: 0,
@@ -138,7 +138,7 @@ struct Parser {
 }
 
 impl Parser {
-    fn new(input: String, state_sensitive: bool) -> Self {
+    fn new(input: &String, state_sensitive: bool) -> Self {
         let mut lex = Lexer::new(input);
         let cur_token = lex.next_token();
         let peek_token = lex.next_token();
@@ -231,6 +231,10 @@ impl Parser {
             self.next_token();
         }
     }
+
+    fn eval(self) -> usize {
+        self.into_iter().fold(0, |acc, cur| acc + cur.eval())
+    }
 }
 
 impl Iterator for Parser {
@@ -242,22 +246,16 @@ impl Iterator for Parser {
 }
 
 pub fn day3(input: String) {
-    println!("Part 1: {}", part1(input.clone()));
-    println!("Part 2: {}", part2(input));
+    println!("Part 1: {}", part1(&input));
+    println!("Part 2: {}", part2(&input));
 }
 
-fn part1(input: String) -> usize {
-    let parser = Parser::new(input, false);
-    parser
-        .into_iter()
-        .fold(0, |acc, cur| acc + cur.eval())
+fn part1(input: &String) -> usize {
+    Parser::new(input, false).eval()
 }
 
-fn part2(input: String) -> usize {
-    let parser = Parser::new(input, true);
-    parser
-        .into_iter()
-        .fold(0, |acc, cur| acc + cur.eval())
+fn part2(input: &String) -> usize {
+    Parser::new(input, true).eval()
 }
 
 #[cfg(test)]
@@ -265,7 +263,7 @@ mod day3_test {
     use super::{Mul, Parser};
 
     fn parse(input: &str) -> Vec<Mul> {
-        let parser = Parser::new(input.into(), true);
+        let parser = Parser::new(&input.into(), true);
         parser.into_iter().collect()
     }
 
