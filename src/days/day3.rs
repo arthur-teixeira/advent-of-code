@@ -33,32 +33,32 @@ impl Lexer {
         }
     }
 
-    fn get_mul(&mut self) -> Option<Token> {
+    fn get_mul(&mut self) -> Token {
         let buf = &self.text[self.pos..self.pos + 3];
         let token = match buf {
-            ['m', 'u', 'l'] => Some(Token::MUL),
-            _ => None,
+            ['m', 'u', 'l'] => Token::MUL,
+            _ => Token::GARBAGE,
         };
 
         self.pos += 2;
         token
     }
 
-    fn get_do_dont(&mut self) -> Option<Token> {
+    fn get_do_dont(&mut self) -> Token {
         let dont_buf = &self.text[self.pos..self.pos + 5];
         match dont_buf {
             ['d', 'o', 'n', '\'', 't'] => {
                 self.pos += 4;
-                Some(Token::DONT)
+                Token::DONT
             }
             _ => {
                 let do_buf = &dont_buf[0..2];
                 match do_buf {
                     ['d', 'o'] => {
                         self.pos += 1;
-                        Some(Token::DO)
+                        Token::DO
                     }
-                    _ => None,
+                    _ => Token::GARBAGE,
                 }
             }
         }
@@ -85,28 +85,22 @@ impl Lexer {
     }
 
     fn next_token(&mut self) -> Token {
-        loop {
-            if self.pos >= self.text.len() {
-                return Token::EOF;
-            }
-
-            let cur = match self.text[self.pos] {
-                'm' => self.get_mul(),
-                'd' => self.get_do_dont(),
-                '(' => Some(Token::LPAREN),
-                ')' => Some(Token::RPAREN),
-                ',' => Some(Token::COMMA),
-                d if d.is_ascii_digit() => Some(self.get_num()),
-                _ => Some(Token::GARBAGE),
-            };
-
-            self.pos += 1;
-
-            match cur {
-                Some(tok) => return tok,
-                None => continue,
-            }
+        if self.pos >= self.text.len() {
+            return Token::EOF;
         }
+
+        let cur = match self.text[self.pos] {
+            'm' => self.get_mul(),
+            'd' => self.get_do_dont(),
+            '(' => Token::LPAREN,
+            ')' => Token::RPAREN,
+            ',' => Token::COMMA,
+            d if d.is_ascii_digit() => self.get_num(),
+            _ => Token::GARBAGE,
+        };
+
+        self.pos += 1;
+        cur
     }
 }
 
