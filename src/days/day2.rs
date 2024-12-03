@@ -121,17 +121,11 @@ pub fn day2(input: String) {
 }
 
 fn part1(reports: &Vec<Report>) -> usize {
-    reports
-        .iter()
-        .filter(|r| r.is_safe())
-        .fold(0, |acc, _| acc + 1)
+    reports.iter().filter(|r| r.is_safe()).count()
 }
 
 fn part2(reports: &Vec<Report>) -> usize {
-    reports
-        .iter()
-        .filter(|r| r.is_safe_dampened())
-        .fold(0, |acc, _| acc + 1)
+    reports.iter().filter(|r| r.is_safe_dampened()).count()
 }
 
 #[cfg(test)]

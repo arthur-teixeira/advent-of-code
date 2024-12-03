@@ -178,7 +178,6 @@ impl Parser {
     }
 
     fn parse_mul(&mut self) -> Option<Mul> {
-        // we start at Token::MUL
         self.expect_next_token(Token::LPAREN)?;
         self.expect_next_token(Token::INT(0))?;
         let left = self.cur_token.as_num().expect("Expected int");
@@ -187,19 +186,14 @@ impl Parser {
         let right = self.cur_token.as_num().expect("Expected int");
         self.expect_next_token(Token::RPAREN)?;
 
-        if self.state_sensitive {
-            if self.enabled {
-                return Some(Mul(left, right));
-            }
-
-            return None;
+        if !self.state_sensitive || self.enabled {
+            Some(Mul(left, right))
+        } else {
+            None
         }
-
-        Some(Mul(left, right))
     }
 
     fn change_state(&mut self) -> Option<()> {
-        // we start at Token::DO or Token::DONT
         let modifier = self.cur_token;
         self.expect_next_token(Token::LPAREN)?;
         self.expect_next_token(Token::RPAREN)?;
