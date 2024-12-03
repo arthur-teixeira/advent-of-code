@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Token {
     MUL,
     INT(usize),
@@ -6,6 +6,8 @@ enum Token {
     LPAREN,
     RPAREN,
     GARBAGE,
+    DO,
+    DONT,
     EOF,
 }
 
@@ -42,6 +44,26 @@ impl Lexer {
         token
     }
 
+    fn get_do_dont(&mut self) -> Option<Token> {
+        let dont_buf = &self.text[self.pos..self.pos + 5];
+        match dont_buf {
+            ['d', 'o', 'n', '\'', 't'] => {
+                self.pos += 4;
+                Some(Token::DONT)
+            }
+            _ => {
+                let do_buf = &dont_buf[0..2];
+                match do_buf {
+                    ['d', 'o'] => {
+                        self.pos += 1;
+                        Some(Token::DO)
+                    }
+                    _ => None,
+                }
+            }
+        }
+    }
+
     fn get_num(&mut self) -> Token {
         let start = self.pos;
         while self.text[self.pos + 1].is_ascii_digit() {
@@ -70,6 +92,7 @@ impl Lexer {
 
             let cur = match self.text[self.pos] {
                 'm' => self.get_mul(),
+                'd' => self.get_do_dont(),
                 '(' => Some(Token::LPAREN),
                 ')' => Some(Token::RPAREN),
                 ',' => Some(Token::COMMA),
@@ -110,10 +133,12 @@ struct Parser {
     l: Lexer,
     cur_token: Token,
     peek_token: Token,
+    state_sensitive: bool,
+    enabled: bool,
 }
 
 impl Parser {
-    fn new(input: String) -> Self {
+    fn new(input: String, state_sensitive: bool) -> Self {
         let mut lex = Lexer::new(input);
         let cur_token = lex.next_token();
         let peek_token = lex.next_token();
@@ -122,6 +147,8 @@ impl Parser {
             l: lex,
             cur_token,
             peek_token,
+            enabled: true,
+            state_sensitive,
         }
     }
 
@@ -160,13 +187,40 @@ impl Parser {
         let right = self.cur_token.as_num().expect("Expected int");
         self.expect_next_token(Token::RPAREN)?;
 
+        if self.state_sensitive {
+            if self.enabled {
+                return Some(Mul(left, right));
+            }
+
+            return None;
+        }
+
         Some(Mul(left, right))
+    }
+
+    fn change_state(&mut self) -> Option<()> {
+        // we start at Token::DO or Token::DONT
+        let modifier = self.cur_token;
+        self.expect_next_token(Token::LPAREN)?;
+        self.expect_next_token(Token::RPAREN)?;
+
+        self.enabled = match modifier {
+            Token::DO => true,
+            Token::DONT => false,
+            _ => unreachable!(),
+        };
+
+        Some(())
     }
 
     fn next_expression(&mut self) -> Option<Mul> {
         loop {
             let cur = match self.cur_token {
                 Token::MUL => self.parse_mul(),
+                Token::DO | Token::DONT => {
+                    self.change_state();
+                    None
+                }
                 Token::EOF => return None,
                 _ => None,
             };
@@ -188,16 +242,21 @@ impl Iterator for Parser {
 }
 
 pub fn day3(input: String) {
-    println!("Part 1: {}", part1(input));
+    println!("Part 1: {}", part1(input.clone()));
+    println!("Part 2: {}", part2(input));
 }
 
 fn part1(input: String) -> usize {
-    let parser = Parser::new(input);
-    parser.into_iter()
-        .map(|cur| {
-            println!("{:?}", cur);
-            cur
-        })
+    let parser = Parser::new(input, false);
+    parser
+        .into_iter()
+        .fold(0, |acc, cur| acc + cur.eval())
+}
+
+fn part2(input: String) -> usize {
+    let parser = Parser::new(input, true);
+    parser
+        .into_iter()
         .fold(0, |acc, cur| acc + cur.eval())
 }
 
@@ -206,7 +265,7 @@ mod day3_test {
     use super::{Mul, Parser};
 
     fn parse(input: &str) -> Vec<Mul> {
-        let parser = Parser::new(input.into());
+        let parser = Parser::new(input.into(), true);
         parser.into_iter().collect()
     }
 
