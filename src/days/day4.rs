@@ -1,5 +1,6 @@
 pub fn day4(input: String) {
     println!("Part 1: {}", part1(&input));
+    println!("Part 2: {}", part2(&input));
 }
 
 fn search_horizontally(input: &str, chars_to_find: &[char]) -> usize {
@@ -135,9 +136,39 @@ fn part1(input: &str) -> usize {
         + search_diagonally(input, chars_to_find, false)
 }
 
+fn part2(input: &str) -> usize {
+    let as_matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+    assert!(as_matrix.len() > 0);
+
+    let rows = as_matrix.len();
+    let cols = as_matrix[0].len();
+
+    let mut count = 0;
+    for j in 1..cols - 1 {
+        for i in 1..rows - 1 {
+            let ch = as_matrix[i][j];
+            if ch != 'A' {
+                continue;
+            }
+
+            let right_diag = [as_matrix[i - 1][j - 1], ch, as_matrix[i + 1][j + 1]];
+            let right_diag: String = right_diag.iter().collect();
+
+            let left_diag =[as_matrix[i+1][j-1], ch, as_matrix[i-1][j+1]];
+            let left_diag: String = left_diag.iter().collect();
+
+            if (right_diag == "SAM" || right_diag == "MAS") && (left_diag == "SAM" || left_diag == "MAS") {
+                count +=1;
+            }
+        }
+    }
+
+    count
+}
+
 #[cfg(test)]
 mod day4_test {
-    use crate::days::day4::{part1, search_diagonally, search_horizontally, search_vertically};
+    use crate::days::day4::{part1, search_diagonally, search_horizontally, search_vertically, part2};
 
     type Searcher = fn(&str, &[char]) -> usize;
     const CHARS_TO_FIND: &[char] = &['X', 'M', 'A', 'S'];
@@ -204,5 +235,13 @@ mod day4_test {
     fn test_example() {
         let input = "MMMSXXMASM\nMSAMXMSMSA\nAMXSXMAAMM\nMSAMASMSMX\nXMASAMXAMM\nXXAMMXXAMA\nSMSMSASXSS\nSAXAMASAAA\nMAMMMXMMMM\nMXMXAXMASX";
         assert_eq!(18, part1(input));
+    }
+
+    #[test]
+    fn test_xmas() {
+        assert_eq!(1, part2("M.S\n.A.\nM.S"));
+        assert_eq!(1, part2( "S.M\n.A.\nS.M"));
+        assert_eq!(1, part2("M.M\n.A.\nS.S"));
+        assert_eq!(1, part2("S.S\n.A.\nM.M"));
     }
 }
