@@ -41,7 +41,13 @@ impl Map {
         }
     }
 
-    fn add_antinode(&self, antinodes: &mut HashSet<Location>, a: Location, b: Location, loc: Location) {
+    fn add_antinode(
+        &self,
+        antinodes: &mut HashSet<Location>,
+        a: Location,
+        b: Location,
+        loc: Location,
+    ) {
         let (i, j) = loc;
         if i >= 0 && i < self.rows as isize && j >= 0 && j < self.cols as isize {
             if loc != a && loc != b {
@@ -50,7 +56,7 @@ impl Map {
         }
     }
 
-    fn get_antinodes(&self) -> usize {
+    fn part_one(&self) -> usize {
         let mut antinodes: HashSet<Location> = HashSet::new();
         for locs in self.frequencies_locations.values() {
             for c in locs.iter().combinations(2) {
@@ -73,8 +79,39 @@ impl Map {
 
         antinodes.len()
     }
+
+    fn add_antinodes_in_line(
+        &self,
+        start: Location,
+        diff: Location,
+        antinodes: &mut HashSet<Location>,
+    ) {
+        let mut cur: Location = (start.0 + diff.0, start.1 + diff.1);
+        while cur.0 >= 0 && cur.0 < self.rows as isize && cur.1 >= 0 && cur.1 < self.cols as isize {
+            antinodes.insert(cur);
+            cur = (cur.0 + diff.0, cur.1 + diff.1);
+        }
+    }
+
+    fn part_two(&self) -> usize {
+        let mut antinodes: HashSet<Location> = HashSet::new();
+        for locs in self.frequencies_locations.values() {
+            for c in locs.iter().combinations(2) {
+                let (x1, y1) = *c[0];
+                let (x2, y2) = *c[1];
+                let diff = (x1 as isize - x2 as isize, y1 as isize - y2 as isize);
+                self.add_antinodes_in_line((x1, y1), diff, &mut antinodes);
+                self.add_antinodes_in_line((x1, y1), (-diff.0, -diff.1), &mut antinodes);
+                self.add_antinodes_in_line((x2, y2), diff, &mut antinodes);
+                self.add_antinodes_in_line((x2, y2), (-diff.0, -diff.1), &mut antinodes);
+            }
+        }
+
+        antinodes.len()
+    }
 }
 pub fn day8(input: String) {
     let map = Map::new(&input);
-    println!("Part 1:{:?}", map.get_antinodes());
+    println!("Part 1:{:?}", map.part_one());
+    println!("Part 2:{:?}", map.part_two());
 }
