@@ -4,6 +4,7 @@ use itertools::Itertools;
 enum Operation {
     PLUS,
     MULT,
+    CONCAT,
 }
 
 impl Operation {
@@ -11,11 +12,13 @@ impl Operation {
         match self {
             Self::PLUS => a + b,
             Self::MULT => a * b,
+            Self::CONCAT => format!("{}{}", a, b).parse().unwrap(),
         }
     }
 }
 
-const OPERATIONS: [Operation; 2] = [Operation::PLUS, Operation::MULT];
+const OPERATIONS_PART1: [Operation; 2] = [Operation::PLUS, Operation::MULT];
+const OPERATIONS_PART2: [Operation; 3] = [Operation::PLUS, Operation::MULT, Operation::CONCAT];
 
 #[derive(Debug)]
 struct Equation {
@@ -40,8 +43,8 @@ impl Equation {
         Self { target, components }
     }
 
-    fn test(&self) -> usize {
-        for combination in std::iter::repeat(OPERATIONS.iter().cloned())
+    fn test(&self, ops: &[Operation]) -> usize {
+        for combination in std::iter::repeat(ops)
             .take(self.components.len() - 1)
             .multi_cartesian_product()
         {
@@ -56,7 +59,7 @@ impl Equation {
 
             assert!(stack.len() == 1);
             if stack[0] == self.target {
-                return self.target
+                return self.target;
             }
         }
 
@@ -68,7 +71,13 @@ pub fn day7(input: String) {
     let part1 = input
         .lines()
         .map(|line| Equation::from_line(line))
-        .fold(0, |acc, cur| acc + cur.test());
-
+        .fold(0, |acc, cur| acc + cur.test(&OPERATIONS_PART1));
     println!("Part 1: {part1}");
+
+    let part2 = input
+        .lines()
+        .map(|line| Equation::from_line(line))
+        .fold(0, |acc, cur| acc + cur.test(&OPERATIONS_PART2));
+    println!("Part 2: {part2}");
 }
+
