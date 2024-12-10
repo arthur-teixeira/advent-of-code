@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Instant};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Node {
@@ -12,56 +12,46 @@ struct Graph {
 }
 
 pub fn day10(input: String) {
+    let start = Instant::now();
     let graph = parse(input);
-    println!("Part 1: {:?}", part1(&graph));
-    println!("Part 2: {:?}", part2(&graph));
+    let parse_time = start.elapsed();
+    let solve_timer = Instant::now();
+    let (p1, p2) = solve(&graph);
+    let solve_time = solve_timer.elapsed();
+    println!("Part 1: {:?}\nPart 2: {:?}", p1, p2);
+
+    println!(
+        "Performance:\nParsing: {:?}\nPart 1 and 2: {:?}\nTotal:{:?}",
+        parse_time,
+        solve_time,
+        parse_time + solve_time,
+    );
 }
 
-fn part1(graph: &Graph) -> usize {
-    graph.heads.iter().fold(0, |acc, head| {
+fn solve(graph: &Graph) -> (usize, usize) {
+    graph.heads.iter().fold((0, 0), |(acc1, acc2), head| {
         let mut seen = HashSet::new();
-        let head_points = count_1(&head.borrow(), &mut seen);
-        acc + head_points
+        let (p1, p2) = dfs(&head.borrow(), &mut seen);
+        (acc1 + p1, acc2 + p2)
     })
 }
 
-fn part2(graph: &Graph) -> usize {
-    graph.heads.iter().fold(0, |acc, head| {
-        let head_points = count_2(&head.borrow());
-        acc + head_points
-    })
-}
-
-fn count_1(head: &Node, seen: &mut HashSet<usize>) -> usize {
-    if head.level == 9 && !seen.contains(&head.id) {
-        seen.insert(head.id);
-        return 1;
-    } else if head.neighbors.len() == 0 {
-        return 0;
-    }
-
-    let mut cur = 0;
-    for n in &head.neighbors {
-        let n = n.borrow();
-        cur += count_1(&n, seen);
-    }
-
-    cur
-}
-
-fn count_2(head: &Node) -> usize {
+fn dfs(head: &Node, seen: &mut HashSet<usize>) -> (usize, usize) {
     if head.level == 9 {
-        return 1;
+        if !seen.contains(&head.id) {
+            seen.insert(head.id);
+            return (1, 1);
+        } else {
+            return (0, 1);
+        }
     } else if head.neighbors.len() == 0 {
-        return 0;
+        return (0, 0);
     }
 
-    let mut cur = 0;
-    for n in &head.neighbors {
-        let n = n.borrow();
-        cur += count_2(&n);
-    }
-    cur
+    head.neighbors.iter().fold((0, 0), |(acc1, acc2), cur| {
+        let (p1, p2) = dfs(&cur.borrow(), seen);
+        (acc1 + p1, acc2 + p2)
+    })
 }
 
 fn parse(input: String) -> Graph {
