@@ -1,28 +1,28 @@
 
 pub fn day4(input: String) {
-    println!("Part 1: {}", part1(&input));
-    println!("Part 2: {}", part2(&input));
+    let matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+    println!("Part 1: {}", part1(&matrix));
+    println!("Part 2: {}", part2(&matrix));
 }
 
-fn part2(input: &str) -> usize {
-    let as_matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
-    assert!(as_matrix.len() > 0);
+fn part2(matrix: &[Vec<char>]) -> usize {
+    assert!(matrix.len() > 0);
 
-    let rows = as_matrix.len();
-    let cols = as_matrix[0].len();
+    let rows = matrix.len();
+    let cols = matrix[0].len();
 
     let mut count = 0;
     for j in 1..cols - 1 {
         for i in 1..rows - 1 {
-            let ch = as_matrix[i][j];
+            let ch = matrix[i][j];
             if ch != 'A' {
                 continue;
             }
 
-            let right_diag = [as_matrix[i - 1][j - 1], ch, as_matrix[i + 1][j + 1]];
+            let right_diag = [matrix[i - 1][j - 1], ch, matrix[i + 1][j + 1]];
             let right_diag: String = right_diag.iter().collect();
 
-            let left_diag = [as_matrix[i + 1][j - 1], ch, as_matrix[i - 1][j + 1]];
+            let left_diag = [matrix[i + 1][j - 1], ch, matrix[i - 1][j + 1]];
             let left_diag: String = left_diag.iter().collect();
 
             if (right_diag == "SAM" || right_diag == "MAS")
@@ -46,8 +46,7 @@ fn check_char_at(matrix: &[Vec<char>], expected: char, i: isize, j: isize) -> bo
     }
 }
 
-fn part1(input: &str) -> usize {
-    let matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+fn part1(matrix: &[Vec<char>]) -> usize {
     let rows = matrix.len();
     assert!(matrix.len() > 0);
     let cols = matrix[0].len();
@@ -94,7 +93,16 @@ fn part1(input: &str) -> usize {
 
 #[cfg(test)]
 mod day4_test {
-    use crate::days::day4::{part1, part2};
+    use crate::days::day4::{part1 as p1, part2 as p2};
+
+    fn part1(input: &str) -> usize {
+        let matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+        p1(&matrix)
+    }
+    fn part2(input: &str) -> usize {
+        let matrix: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+        p2(&matrix)
+    }
 
     #[test]
     fn test_horizontal() {
