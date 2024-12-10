@@ -6,8 +6,6 @@ type Location = (isize, isize);
 struct Map {
     rows: usize,
     cols: usize,
-    map: Vec<Vec<char>>,
-    unique_frequencies: HashSet<char>,
     frequencies_locations: HashMap<char, Vec<Location>>,
 }
 
@@ -17,13 +15,11 @@ impl Map {
         let rows = map.len();
         let cols = map[0].len();
 
-        let mut unique_frequencies = HashSet::new();
         let mut frequencies_locations: HashMap<char, Vec<Location>> = HashMap::new();
         for i in 0..rows {
             for j in 0..cols {
                 let c = map[i][j];
                 if c != '.' {
-                    unique_frequencies.insert(c);
                     frequencies_locations
                         .entry(c)
                         .and_modify(|v| v.push((i as isize, j as isize)))
@@ -35,8 +31,6 @@ impl Map {
         Self {
             rows,
             cols,
-            unique_frequencies,
-            map,
             frequencies_locations,
         }
     }
@@ -44,13 +38,13 @@ impl Map {
     fn add_antinode(
         &self,
         antinodes: &mut HashSet<Location>,
-        a: Location,
-        b: Location,
+        a: &Location,
+        b: &Location,
         loc: Location,
     ) {
         let (i, j) = loc;
         if i >= 0 && i < self.rows as isize && j >= 0 && j < self.cols as isize {
-            if loc != a && loc != b {
+            if &loc != a && &loc != b {
                 antinodes.insert(loc);
             }
         }
@@ -70,10 +64,10 @@ impl Map {
                 let b1 = (x2 + x_diff, y2 + y_diff);
                 let b2 = (x2 - x_diff, y2 - y_diff);
 
-                self.add_antinode(&mut antinodes, *c[0], *c[1], a1);
-                self.add_antinode(&mut antinodes, *c[0], *c[1], a2);
-                self.add_antinode(&mut antinodes, *c[0], *c[1], b1);
-                self.add_antinode(&mut antinodes, *c[0], *c[1], b2);
+                self.add_antinode(&mut antinodes, c[0], c[1], a1);
+                self.add_antinode(&mut antinodes, c[0], c[1], a2);
+                self.add_antinode(&mut antinodes, c[0], c[1], b1);
+                self.add_antinode(&mut antinodes, c[0], c[1], b2);
             }
         }
 
