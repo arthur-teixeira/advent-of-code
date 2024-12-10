@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -163,12 +163,10 @@ fn part2(map: Map, part1_seen: &HashSet<(usize, usize)>) -> usize {
         .map(|c| c.to_vec())
         .collect();
 
-    let map = Arc::new(RwLock::new(map));
-
+    let map = Arc::new(map);
     for chunk in chunks {
         let map = map.clone();
         let handle = std::thread::spawn(move || {
-            let map = map.read().unwrap();
             let mut cycles = 0;
             for (x, y) in chunk {
                 let mut tortoise = Guard::new(guard_x, guard_y);
