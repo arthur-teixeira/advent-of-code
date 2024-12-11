@@ -41,10 +41,10 @@ pub fn day11(input: String) {
 
     let parse_end = parse_start.elapsed();
     let part1_start = Instant::now();
-    println!("Part 1: {}", solve(freq_count.clone(), 25));
+    println!("Part 1: {}", solve(&mut freq_count, 25));
     let part1_end = part1_start.elapsed();
     let part2_start = Instant::now();
-    println!("Part 2: {}", solve(freq_count, 75));
+    println!("Part 2: {}", solve(&mut freq_count, 50));
     let part2_end = part2_start.elapsed();
 
     println!(
@@ -56,7 +56,7 @@ pub fn day11(input: String) {
     );
 }
 
-fn solve(mut freq_count: HashMap<usize, usize>, rounds: usize) -> usize {
+fn solve(freq_count: &mut HashMap<usize, usize>, rounds: usize) -> usize {
     for _ in 0..rounds {
         let k: Vec<(usize, usize)> = freq_count.iter().map(|(k, v)| (*k, *v)).collect();
         for (num, freq) in k {
