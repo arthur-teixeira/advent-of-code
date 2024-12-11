@@ -1,4 +1,4 @@
-use std::{error::Error, fs::File, io::Read};
+use std::error::Error;
 mod days;
 
 
@@ -13,8 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let day_num: usize = args.next().unwrap().parse()?;
     let input_path = args.next().unwrap();
 
-    let mut input = String::new();
-    File::open(input_path)?.read_to_string(&mut input)?;
+    let input = std::fs::read_to_string(input_path)?;
 
     if let Some(day) = days::DAYS.get(day_num - 1) {
         day(input);

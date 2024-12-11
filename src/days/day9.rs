@@ -123,10 +123,6 @@ fn part2(input: String) -> usize {
                 idx += space;
             },
             Content::Occupied(id, space) => {
-                // id = 2
-                // 0 * 2 + 1 * 2 + 2 * 2 + 3 * 2
-                // =
-                // 2(0 + 1 + 2 + 3)
                 sum += id * (idx..idx+space).sum::<usize>();
                 idx += space;
             }
