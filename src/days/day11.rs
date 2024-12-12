@@ -1,19 +1,5 @@
 use std::{collections::HashMap, time::Instant};
 
-fn blink(n: usize) -> Vec<usize> {
-    match n {
-        0 => vec![1],
-        n if n.checked_ilog10().unwrap_or(0) & 1 == 1 => {
-            let as_str = n.to_string();
-            let len = as_str.len();
-
-            let (first, last) = as_str.split_at(len / 2);
-            vec![first.parse().unwrap(), last.parse().unwrap()]
-        }
-        n => vec![n * 2024],
-    }
-}
-
 fn blink_opt(n: usize) -> (usize, Option<usize>) {
     match n {
         0 => (1, None),
