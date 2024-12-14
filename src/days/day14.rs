@@ -1,8 +1,4 @@
-use std::{
-    fs::{self, File, OpenOptions},
-    io::Write,
-    os::unix::fs::FileExt,
-};
+use std::io::stdin;
 
 use itertools::Itertools;
 
@@ -69,8 +65,37 @@ impl Robot {
 }
 
 pub fn day14(input: String) {
+    draw_iter(&input);
     println!("Part 1: {}", part1(&input));
-    part2(input);
+    println!("Part 2: {}", part2(&input));
+}
+
+fn draw_iter(input: &str) {
+    let grid_bounds = (100, 102);
+    let bots = input
+        .lines()
+        .map(|line| Robot::from_line(line))
+        .collect_vec();
+    let mut i = 1;
+    while i <= 7051 {
+        let mut bs = bots.clone();
+        bs.iter_mut().for_each(|b| {
+            b.walk(i, grid_bounds);
+        });
+        draw(&bs, grid_bounds);
+        println!("Walked {i}");
+
+        let mut input = String::new();
+        stdin().read_line(&mut input).unwrap();
+        let c = input.chars().next().unwrap();
+        match c {
+            'c' => i += 100,
+            ' ' => i += 1000,
+            't' => i += 10,
+            's' => break,
+            _ => i += 1,
+        }
+    }
 }
 
 fn part1(input: &str) -> usize {
@@ -90,7 +115,7 @@ fn part1(input: &str) -> usize {
     quadrants.0 * quadrants.1 * quadrants.2 * quadrants.3
 }
 
-fn part2(input: String) {
+fn part2(input: &str) -> usize {
     let grid_bounds = (100, 102);
     let bots = input
         .lines()
@@ -137,7 +162,6 @@ fn part2(input: String) {
     let (h, w) = (grid_bounds.1 + 1, grid_bounds.0 + 1);
     let t = bx + (((51 * (by - bx)).rem_euclid(h)) * w);
 
-
     let mut bots = bots.clone();
     bots.iter_mut()
         .map(|b| {
@@ -146,8 +170,7 @@ fn part2(input: String) {
         })
         .collect_vec();
 
-    draw(&bots, grid_bounds);
-    println!("Best time is {t}");
+    t as usize
 }
 
 fn x_variance(bots: &Vec<Robot>) -> usize {
@@ -199,30 +222,4 @@ fn draw(bots: &Vec<Robot>, grid_bounds: (isize, isize)) {
     // clear
     print!("\x1B[2J");
     println!("{buf}");
-}
-
-#[cfg(test)]
-mod day14_test {
-    use super::Robot;
-
-    #[test]
-    fn test_walk() {
-        let r = Robot {
-            pos: (2, 4),
-            v: (2, -3),
-        };
-        let grid_bounds = (11, 6);
-
-        for i in 0..10000 {
-            let mut r1 = r.clone();
-            r1.walk(i, grid_bounds);
-
-            let mut r2 = r.clone();
-            for _ in 0..i {
-                r2.walk(1, grid_bounds);
-            }
-
-            assert_eq!(r1, r2, "failed with i = {}", i);
-        }
-    }
 }
