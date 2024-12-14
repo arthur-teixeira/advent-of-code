@@ -30,30 +30,29 @@ impl Robot {
     }
 
     fn walk(&mut self, times: isize, grid_bounds: (isize, isize)) {
-        let (x, y) = self.pos;
-        let (dx, dy) = self.v;
-        let (grid_x, grid_y) = grid_bounds;
+        for _ in 0..times {
+            let (x, y) = self.pos;
+            let (dx, dy) = self.v;
+            let (grid_x, grid_y) = grid_bounds;
 
-        let dx = (dx * times) % grid_x;
-        let dy = (dy * times) % grid_y;
+            let dx = dx % grid_x;
+            let dy = dy % grid_y;
 
-        let grid_x = grid_x - 1;
-        let grid_y = grid_y - 1;
+            let mut new_x = x + dx;
+            if new_x < 0 {
+                new_x = new_x + grid_x + 1;
+            } else if new_x > grid_x {
+                new_x = (new_x % grid_x) - 1;
+            }
 
-        let mut new_x = x + dx;
-        if new_x < 0 {
-            new_x = new_x + grid_x + 1;
-        } else if new_x > grid_x {
-            new_x = (new_x % grid_x) - 1;
+            let mut new_y = y + dy;
+            if new_y < 0 {
+                new_y = new_y + grid_y + 1;
+            } else if new_y > grid_y {
+                new_y = (new_y % grid_y) - 1;
+            }
+            self.pos = (new_x, new_y);
         }
-
-        let mut new_y = y + dy;
-        if new_y < 0 {
-            new_y = new_y + grid_y + 1;
-        } else if new_y > grid_y {
-            new_y = (new_y % grid_y) - 1;
-        }
-        self.pos = (new_x, new_y);
     }
 
     fn get_quadrant(
@@ -71,20 +70,12 @@ impl Robot {
         // q3, x > div && y < div
         // q4, x > div && y > div
         if x < divider_x && y < divider_y {
-            println!("Robot position: {:?}", self.pos);
-            println!("Robot in Q1");
             counter.0 += 1;
         } else if x < divider_x && y > divider_y {
-            println!("Robot position: {:?}", self.pos);
-            println!("Robot in Q2");
             counter.1 += 1;
         } else if x > divider_x && y < divider_y {
-            println!("Robot position: {:?}", self.pos);
-            println!("Robot in Q3");
             counter.2 += 1;
         } else if x > divider_x && y > divider_y {
-            println!("Robot position: {:?}", self.pos);
-            println!("Robot in Q4");
             counter.3 += 1;
         }
     }
