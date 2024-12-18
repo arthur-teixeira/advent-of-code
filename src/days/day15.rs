@@ -1,9 +1,3 @@
-use std::{
-    fmt::{write, Display},
-    thread::sleep,
-    time::Duration,
-};
-
 use itertools::Itertools;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -77,20 +71,6 @@ impl Move {
             '\n' => None,
             _ => unreachable!(),
         }
-    }
-}
-
-impl Display for Move {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let c = match self {
-            Self(-1, 0) => '^',
-            Self(0, 1) => '>',
-            Self(1, 0) => 'v',
-            Self(0, -1) => '<',
-            _ => unreachable!(),
-        };
-
-        write!(f, "{}", c)
     }
 }
 
@@ -189,6 +169,7 @@ impl Grid {
         }
     }
 
+    #[allow(dead_code)]
     fn draw(&self) {
         print!("\x1B[2J");
         for x in 0..self.rows {
