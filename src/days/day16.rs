@@ -1,43 +1,31 @@
 use std::{
-    cell::RefCell,
-    cmp::Reverse,
-    hash::{Hash, Hasher},
-    rc::Rc,
+    collections::{BinaryHeap, HashMap, HashSet},
+    hash::BuildHasher,
 };
 
 use itertools::Itertools;
-use priority_queue::PriorityQueue;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum NodeType {
+enum Tile {
     Wall,
     Start,
     End,
     Free,
 }
 
-#[derive(Clone, Debug, Eq)]
-struct NodeT(Rc<RefCell<Node>>);
-impl NodeT {
-    fn new(n: Node) -> Self {
-        Self(Rc::new(RefCell::new(n)))
+impl Tile {
+    fn new(c: char) -> Self {
+        match c {
+            '.' => Self::Free,
+            '#' => Self::Wall,
+            'S' => Self::Start,
+            'E' => Self::End,
+            _ => unreachable!(),
+        }
     }
 }
 
-impl Hash for NodeT {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_usize(self.0.borrow().id);
-        state.finish();
-    }
-}
-
-impl PartialEq for NodeT {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.borrow().id == other.0.borrow().id
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Hash)]
 enum Direction {
     Up,
     Down,
@@ -45,191 +33,161 @@ enum Direction {
     Right,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Node {
-    kind: NodeType,
-    id: usize,
-    neighbors: Vec<(NodeT, Direction)>,
-    prev: Option<(NodeT, Direction)>,
+impl Direction {
+    fn is_rotated(self, other: Direction) -> bool {
+        match self {
+            Up | Down => [Left, Right].contains(&other),
+            Left | Right => [Up, Down].contains(&other),
+        }
+    }
+
+    fn cost_change(self, other: Direction) -> usize {
+        if self == other {
+            0
+        } else if self.is_rotated(other) {
+            1000
+        } else {
+            2000
+        }
+    }
 }
 
-struct Graph {
-    head: NodeT,
-    end: NodeT,
-    vertices: Vec<NodeT>,
+use Direction::{Down, Left, Right, Up};
+const ALL_DIRECTIONS: [Direction; 4] = [Up, Down, Left, Right];
+
+struct Grid {
+    tiles: Vec<Tile>,
     rows: usize,
     cols: usize,
 }
 
-impl Graph {
-    fn draw_path(&self, path_ids: &[(usize, Direction)]) {
-        let mut cur_id = 0;
-        let ids = path_ids.iter().map(|(i, _)| *i).collect_vec();
-        let dirs = path_ids.iter().map(|(_, i)| *i).collect_vec();
+impl Grid {
+    fn parse(input: &str) -> Grid {
+        let mut rows = 0;
+        let tiles = input
+            .lines()
+            .flat_map(|l| {
+                rows += 1;
+                l.chars().map(Tile::new).collect_vec()
+            })
+            .collect_vec();
 
-        for _ in 0..self.rows {
-            for _ in 0..self.cols {
-                if ids.contains(&cur_id) {
-                    let p = ids.iter().position(|i| *i == cur_id).unwrap();
-                    let c = match dirs[p] {
-                        Direction::Up => '^',
-                        Direction::Down => 'v',
-                        Direction::Left => '<',
-                        Direction::Right => '>',
-                    };
+        let cols = tiles.len() / rows;
+        Grid { rows, cols, tiles }
+    }
 
-                    print!("{c}");
-                } else {
-                    print!(".");
-                }
-
-                cur_id += 1;
-            }
-            println!();
+    fn next_pos(&self, pos: usize, dir: Direction) -> usize {
+        match dir {
+            Direction::Up => pos - self.cols,
+            Direction::Down => pos + self.cols,
+            Direction::Left => pos - 1,
+            Direction::Right => pos + 1,
         }
+    }
+
+    fn allowed(&self, pos: usize, dir: Direction) -> bool {
+        !match dir {
+            Up => pos < self.cols,
+            Right => pos % self.cols == self.cols - 1,
+            Down => pos / self.cols == self.rows - 1,
+            Left => pos % self.cols == 0,
+        }
+    }
+
+    fn start(&self) -> usize {
+        self.tiles.iter().position(|t| *t == Tile::Start).unwrap()
+    }
+
+    fn end(&self) -> usize {
+        self.tiles.iter().position(|t| *t == Tile::End).unwrap()
     }
 }
 
-fn parse(input: &str) -> Graph {
-    let mut id = 0;
-    let node_matrix: Vec<Vec<NodeT>> = input
-        .lines()
-        .map(|line| {
-            line.chars()
-                .map(|c| {
-                    let a = NodeT::new(Node {
-                        kind: match c {
-                            '.' => NodeType::Free,
-                            'S' => NodeType::Start,
-                            'E' => NodeType::End,
-                            '#' => NodeType::Wall,
-                            _ => unreachable!(),
-                        },
-                        id,
-                        neighbors: vec![],
-                        prev: None,
-                    });
-                    id += 1;
-                    a
-                })
-                .collect()
-        })
-        .collect();
+#[derive(Debug, PartialEq, Eq)]
+struct Node {
+    pos: usize,
+    direction: Direction,
+    cost: usize,
+}
 
-    let cols = node_matrix[0].len();
-    let rows = node_matrix.len();
-    let mut head: Option<NodeT> = None;
-    let mut end: Option<NodeT> = None;
-
-    for i in 0..rows {
-        for j in 0..cols {
-            let node = &node_matrix[i][j];
-            if j > 0 {
-                let left_node = node_matrix[i][j - 1].clone();
-                if left_node.0.borrow().kind != NodeType::Wall {
-                    node.0
-                        .borrow_mut()
-                        .neighbors
-                        .push((left_node, Direction::Left));
-                }
-            }
-            if j < cols - 1 {
-                let right_node = node_matrix[i][j + 1].clone();
-                if right_node.0.borrow().kind != NodeType::Wall {
-                    node.0
-                        .borrow_mut()
-                        .neighbors
-                        .push((right_node, Direction::Right));
-                }
-            }
-
-            if i > 0 {
-                let up_node = node_matrix[i - 1][j].clone();
-                if up_node.0.borrow().kind != NodeType::Wall {
-                    node.0.borrow_mut().neighbors.push((up_node, Direction::Up));
-                }
-            }
-
-            if i < rows - 1 {
-                let down_node = node_matrix[i + 1][j].clone();
-                if down_node.0.borrow().kind != NodeType::Wall {
-                    node.0
-                        .borrow_mut()
-                        .neighbors
-                        .push((down_node, Direction::Down));
-                }
-            }
-            if node.0.borrow().kind == NodeType::Start {
-                head = Some(node.clone());
-            } else if node.0.borrow().kind == NodeType::End {
-                end = Some(node.clone());
-            }
-        }
-    }
-
-    Graph {
-        head: head.expect("Expected start to be in the input"),
-        end: end.expect("Expected end to be in the input"),
-        vertices: node_matrix.into_iter().flatten().collect_vec(),
-        rows,
-        cols,
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-fn shortest_distance(g: &Graph) -> usize {
-    let mut distances = vec![0; 10000000];
-    let mut queue: PriorityQueue<NodeT, Reverse<usize>> = PriorityQueue::new();
-    let hid = g.head.0.borrow().id;
-    distances[hid] = 0;
-    queue.push(g.head.clone(), Reverse(0));
-
-    for v in &g.vertices {
-        let id = v.0.borrow().id;
-        if v.0.borrow().id != hid {
-            distances[id] = usize::MAX - 1001;
-            queue.push(v.clone(), Reverse(usize::MAX - 1001));
-        }
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.cost.cmp(&self.cost)
     }
-
-    while !queue.is_empty() {
-        let (u, _) = queue.pop().unwrap();
-
-        for (v, dir) in &u.0.borrow().neighbors {
-            let dir_to_reach_u = match u.0.borrow().prev {
-                None => {
-                    if u.0.borrow().kind == NodeType::Start {
-                        Direction::Right
-                    } else {
-                        *dir
-                    }
-                }
-                Some(ref p) => p.1,
-            };
-            let cost = if *dir != dir_to_reach_u { 1001 } else { 1 };
-
-            let alt = distances[u.0.borrow().id].saturating_add(cost);
-            if alt < distances[v.0.borrow().id] {
-                v.0.borrow_mut().prev = Some((NodeT(Rc::clone(&u.0)), *dir));
-                distances[v.0.borrow().id] = alt;
-                queue.change_priority(&v, Reverse(alt));
-            }
-        }
-    }
-
-    distances[g.end.0.borrow().id]
 }
 
-fn build_path(g: &NodeT, acc: &mut Vec<(usize, Direction)>) {
-    if let Some((p, dir)) = &g.0.borrow().prev {
-        build_path(&p, acc);
-        acc.push((p.0.borrow().id, *dir));
+fn find_smallest_cost(grid: &Grid, start: usize, start_direction: Direction, end: usize) -> usize {
+    let mut seen: HashSet<(usize, Direction)> = HashSet::new();
+    let mut distance: HashMap<(usize, Direction), usize> = HashMap::new();
+    let mut smallest_cost = usize::MAX;
+
+    let mut queue: BinaryHeap<Node> = BinaryHeap::new();
+    queue.push(Node {
+        pos: start,
+        direction: start_direction,
+        cost: 0,
+    });
+
+    while let Some(Node {
+        pos,
+        direction,
+        cost,
+    }) = queue.pop()
+    {
+        seen.insert((pos, direction));
+
+        if pos == end {
+            smallest_cost = cost.min(smallest_cost);
+            continue;
+        }
+
+        queue.extend(ALL_DIRECTIONS.iter().filter_map(|&d| {
+            if !grid.allowed(pos, d) {
+                return None;
+            }
+
+            let next_pos = grid.next_pos(pos, d);
+            if seen.contains(&(next_pos, d)) {
+                return None;
+            }
+
+            if grid.tiles[next_pos] == Tile::Wall {
+                return None;
+            }
+
+            let next_cost = cost + 1 + direction.cost_change(d);
+            if let Some(&prevcost) = distance.get(&(next_pos, d)) {
+                if prevcost <= next_cost {
+                    return None;
+                }
+            }
+
+            if next_cost >= smallest_cost {
+                return None;
+            }
+
+            distance.insert((next_pos, d), next_cost);
+            Some(Node {
+                pos: next_pos,
+                direction: d,
+                cost: next_cost,
+            })
+        }));
     }
+
+    smallest_cost
 }
 
 pub fn day16(input: String) {
-    let graph = parse(&input);
-    println!("{:?}", shortest_distance(&graph));
-    let mut result = Vec::new();
-    build_path(&graph.end, &mut result);
-    graph.draw_path(&result);
+    let grid = Grid::parse(&input);
+    println!(
+        "{:?}",
+        find_smallest_cost(&grid, grid.start(), Right, grid.end())
+    );
 }
