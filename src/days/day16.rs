@@ -1,5 +1,6 @@
 use std::{
-    collections::{BinaryHeap, HashMap, HashSet},
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap, HashSet, VecDeque},
     hash::BuildHasher,
 };
 
@@ -101,6 +102,55 @@ impl Grid {
     fn end(&self) -> usize {
         self.tiles.iter().position(|t| *t == Tile::End).unwrap()
     }
+
+    fn draw_path(&self, path: Vec<PathNode>) {
+        for i in 0..self.tiles.len() {
+            if i % self.cols == 0 {
+                println!();
+            }
+
+            let v = match path.iter().find(|pn| pn.pos == i) {
+                Some(pn) => match pn.dir {
+                    Up => '^',
+                    Down => 'v',
+                    Left => '<',
+                    Right => '>',
+                },
+                None => match self.tiles[i] {
+                    Tile::End => 'E',
+                    Tile::Wall => '#',
+                    Tile::Free => '.',
+                    Tile::Start => 'S',
+                },
+            };
+
+            print!("{v}");
+        }
+
+        println!()
+    }
+
+    fn draw_best_nodes(&self, nodes: &HashSet<usize>) {
+        for i in 0..self.tiles.len() {
+            if i % self.cols == 0 {
+                println!();
+            }
+
+            let v = match nodes.contains(&i) {
+                true => 'O',
+                false => match self.tiles[i] {
+                    Tile::End => 'E',
+                    Tile::Wall => '#',
+                    Tile::Free => '.',
+                    Tile::Start => 'S',
+                },
+            };
+
+            print!("{v}");
+        }
+
+        println!()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -122,9 +172,20 @@ impl Ord for Node {
     }
 }
 
-fn find_smallest_cost(grid: &Grid, start: usize, start_direction: Direction, end: usize) -> usize {
-    let mut seen: HashSet<(usize, Direction)> = HashSet::new();
+#[derive(Clone, Debug)]
+struct PathNode {
+    pos: usize,
+    dir: Direction,
+}
+
+fn find_all_best_paths(
+    grid: &Grid,
+    start: usize,
+    start_direction: Direction,
+    end: usize,
+) -> (usize, Vec<Vec<PathNode>>) {
     let mut distance: HashMap<(usize, Direction), usize> = HashMap::new();
+    let mut predecessors: HashMap<(usize, Direction), Vec<(usize, Direction)>> = HashMap::new();
     let mut smallest_cost = usize::MAX;
 
     let mut queue: BinaryHeap<Node> = BinaryHeap::new();
@@ -133,6 +194,7 @@ fn find_smallest_cost(grid: &Grid, start: usize, start_direction: Direction, end
         direction: start_direction,
         cost: 0,
     });
+    distance.insert((start, start_direction), 0);
 
     while let Some(Node {
         pos,
@@ -140,36 +202,41 @@ fn find_smallest_cost(grid: &Grid, start: usize, start_direction: Direction, end
         cost,
     }) = queue.pop()
     {
-        seen.insert((pos, direction));
-
-        if pos == end {
-            smallest_cost = cost.min(smallest_cost);
+        if cost > *distance.get(&(pos, direction)).unwrap_or(&usize::MAX) {
             continue;
         }
 
+        if pos == end {
+            smallest_cost = cost.min(smallest_cost);
+        }
+
         queue.extend(ALL_DIRECTIONS.iter().filter_map(|&d| {
-            if !grid.allowed(pos, d) {
-                return None;
-            }
-
             let next_pos = grid.next_pos(pos, d);
-            if seen.contains(&(next_pos, d)) {
-                return None;
-            }
-
-            if grid.tiles[next_pos] == Tile::Wall {
+            if !grid.allowed(pos, d) || grid.tiles[next_pos] == Tile::Wall {
                 return None;
             }
 
             let next_cost = cost + 1 + direction.cost_change(d);
-            if let Some(&prevcost) = distance.get(&(next_pos, d)) {
-                if prevcost <= next_cost {
-                    return None;
-                }
+            if next_cost > smallest_cost && pos != end {
+                return None;
             }
 
-            if next_cost >= smallest_cost {
-                return None;
+            if match distance.get(&(next_pos, d)) {
+                Some(&existing_cost) => match next_cost.cmp(&existing_cost) {
+                    Ordering::Less => true,
+                    Ordering::Equal => false,
+                    Ordering::Greater => return None,
+                },
+                None => true,
+            } {
+                distance.insert((next_pos, d), next_cost);
+                predecessors.insert((next_pos, d), vec![(pos, direction)]);
+            } else {
+                if let Some(pred_list) = predecessors.get_mut(&(next_pos, d)) {
+                    if !pred_list.contains(&(pos, direction)) {
+                        pred_list.push((pos, direction));
+                    }
+                }
             }
 
             distance.insert((next_pos, d), next_cost);
@@ -181,13 +248,58 @@ fn find_smallest_cost(grid: &Grid, start: usize, start_direction: Direction, end
         }));
     }
 
-    smallest_cost
+    let mut all_paths = vec![];
+    let mut stack = VecDeque::new();
+
+    for end_direction in ALL_DIRECTIONS
+        .iter()
+        .filter(|&&d| distance.contains_key(&(end, d)))
+    {
+        stack.push_back((
+            vec![PathNode {
+                pos: end,
+                dir: *end_direction,
+            }],
+            (end, *end_direction),
+        ));
+    }
+
+    while let Some((mut cur_path, cur_node)) = stack.pop_back() {
+        if cur_node == (start, start_direction) {
+            cur_path.reverse();
+            all_paths.push(cur_path);
+        } else if let Some(prev_nodes) = predecessors.get(&cur_node) {
+            for &(prev_pos, prev_dir) in prev_nodes {
+                let mut new_path = cur_path.clone();
+                new_path.push(PathNode {
+                    pos: prev_pos,
+                    dir: prev_dir,
+                });
+                stack.push_back((new_path, (prev_pos, prev_dir)));
+            }
+        }
+    }
+
+    (smallest_cost, all_paths)
+}
+
+pub fn solve(input: &str) -> (usize, usize) {
+    let grid = Grid::parse(&input);
+    let (smallest_cost, all_paths) = find_all_best_paths(&grid, grid.start(), Right, grid.end());
+
+    let mut unique_nodes = HashSet::new();
+    for path in all_paths {
+        unique_nodes.extend(path.iter().map(|node| node.pos));
+        grid.draw_path(path);
+    }
+
+    grid.draw_best_nodes(&unique_nodes);
+
+    (smallest_cost, unique_nodes.len())
 }
 
 pub fn day16(input: String) {
-    let grid = Grid::parse(&input);
-    println!(
-        "{:?}",
-        find_smallest_cost(&grid, grid.start(), Right, grid.end())
-    );
+    let (p1, p2) = solve(&input);
+    println!("Part 1: {p1}");
+    println!("Part 2: {p2}");
 }
