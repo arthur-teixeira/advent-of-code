@@ -1,3 +1,5 @@
+use std::cmp;
+
 use itertools::Itertools;
 
 enum Op {
@@ -27,7 +29,7 @@ impl Op {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Machine {
     a: usize,
     b: usize,
@@ -41,6 +43,7 @@ impl Machine {
     fn run(&mut self) {
         while let Some(()) = self.exec() {}
     }
+
     fn exec(&mut self) -> Option<()> {
         let op = *self.ops.get(self.ip)?;
         self.ip += 1;
@@ -141,7 +144,51 @@ fn parse(input: &str) -> Machine {
 }
 
 pub fn day17(input: String) {
-    let mut machine = parse(&input);
+    part1(&input);
+    part2(&input);
+}
+
+fn part1(input: &str) {
+    let mut machine = parse(input);
     machine.run();
-    println!("{}", machine.out.iter().join(","));
+    println!("Part 1: {}", machine.out.iter().join(","));
+}
+
+fn is_eq(a: &[usize], b: &[usize]) -> bool {
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn cmp(machine: &Machine, a: usize, cmp_index: usize, possible: &mut Vec<usize>) -> usize {
+    for i in 0..8 {
+        let new_a = (a << 3) | i;
+        let mut cur = machine.clone();
+        cur.a = new_a;
+        cur.run();
+
+        let out = cur.out.clone();
+        if is_eq(&out, &cur.ops[cmp_index..]) {
+            if cur.out == cur.ops {
+                possible.push(new_a);
+            } else {
+                cmp(machine, new_a, cmp_index - 1, possible);
+            }
+        }
+    }
+
+    *possible.iter().min().unwrap_or(&0)
+}
+
+fn part2(input: &str) {
+    let machine = parse(input);
+    let mut possible = vec![];
+    println!(
+        "Part 2: {:?}",
+        cmp(&machine, 0, machine.ops.len() - 1, &mut possible)
+    );
 }
