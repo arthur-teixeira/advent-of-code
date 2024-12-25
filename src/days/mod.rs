@@ -16,6 +16,7 @@ mod day15;
 mod day16;
 mod day17;
 mod day18;
+mod day19;
 
 type Day = fn(input: String) -> ();
 pub const DAYS: &[Day] = &[
@@ -37,4 +38,5 @@ pub const DAYS: &[Day] = &[
     day16::day16,
     day17::day17,
     day18::day18,
+    day19::day19,
 ];
