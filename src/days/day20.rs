@@ -41,7 +41,7 @@ struct Grid {
     size: usize,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
 struct Cheat(usize, usize);
 // impl PartialEq for Cheat {
 //     fn eq(&self, other: &Self) -> bool {
@@ -112,7 +112,14 @@ impl Grid {
         self.tiles.iter().position(|t| *t == Tile::End).unwrap()
     }
 
-    fn is_valid(&self, initial_pos: usize, next_pos: usize) -> bool {
+    fn is_valid(
+        &self,
+        pos_before_cheat: usize,
+        initial_pos: usize,
+        next_pos: usize,
+        initial_path: &Vec<usize>,
+        distances: &HashMap<usize, usize>,
+    ) -> bool {
         if self.tiles[next_pos] == Tile::Wall {
             return false;
         }
@@ -120,7 +127,10 @@ impl Grid {
             if self.allowed(next_pos, dir) {
                 let next_next = self.next_pos(next_pos, dir);
                 if self.tiles[next_next] != Tile::Wall && next_next != initial_pos {
-                    return true;
+                    let dist_to_pos = *distances.get(&pos_before_cheat).unwrap_or(&usize::MAX);
+                    let dist_to_cheat_end = *distances.get(&next_next).unwrap_or(&usize::MAX);
+                    return initial_path.contains(&next_next)
+                        && dist_to_cheat_end >= dist_to_pos + 2;
                 }
             }
         }
@@ -128,24 +138,42 @@ impl Grid {
         false
     }
 
-    fn cheats(&self) -> Vec<Cheat> {
-        // Two walls, that don't hit another wall after
-        // One wall and one normal tile
-        // One normal tile and one wall, as long as there is no wall after
-        let mut cheats = Vec::new();
-        for i in 0..self.tiles.len() {
-            for dir in ALL_DIRECTIONS {
-                if self.allowed(i, dir) {
-                    let next_pos = self.next_pos(i, dir);
-                    // Is valid if at least one position after cheat is not a wall or previous
-                    // position and is within bounds
-                    if self.is_valid(i, next_pos) {
-                        let cheat = Cheat(i, self.next_pos(i, dir));
-                        if !cheats.contains(&cheat) {
-                            cheats.push(cheat);
+    fn cheats_from_initial_path(
+        &self,
+        path: &Vec<usize>,
+        distances: &HashMap<usize, usize>,
+    ) -> Vec<Cheat> {
+        let mut cheats = HashSet::new();
+        for node in path {
+            for c in self.cheats_from_pos(*node, path, distances) {
+                cheats.insert(c);
+            }
+        }
+
+        cheats.into_iter().collect_vec()
+    }
+
+    fn cheats_from_pos(
+        &self,
+        pos: usize,
+        path: &Vec<usize>,
+        distances: &HashMap<usize, usize>,
+    ) -> Vec<Cheat> {
+        let mut cheats = vec![];
+        for dir in ALL_DIRECTIONS {
+            if self.allowed(pos, dir) {
+                let cheat_start = self.next_pos(pos, dir);
+                for cheat_dir in ALL_DIRECTIONS {
+                    if self.allowed(cheat_start, cheat_dir) {
+                        let cheat_end = self.next_pos(cheat_start, cheat_dir);
+                        if self.is_valid(pos, cheat_start, cheat_end, path, distances) {
+                            let cheat = Cheat(cheat_start, cheat_end);
+                            if !cheats.contains(&cheat) {
+                                cheats.push(cheat);
+                            }
                         }
                     }
-                };
+                }
             }
         }
 
@@ -153,13 +181,25 @@ impl Grid {
     }
 }
 
-fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
+fn bfs(grid: &Grid, cheat: &Cheat) -> (Vec<usize>, HashMap<usize, usize>) {
     let mut queue = VecDeque::new();
     let dest = grid.end();
     queue.push_back((grid.start(), vec![]));
     let mut seen = HashSet::new();
+    let mut distances: HashMap<usize, usize> = HashMap::new();
 
     while let Some((pos, path)) = queue.pop_front() {
+        match distances.get_mut(&pos) {
+            Some(dist) => {
+                if *dist > path.len() {
+                    *dist = path.len();
+                }
+            }
+            None => {
+                distances.insert(pos, path.len());
+            }
+        };
+
         // We can only ignore c2 if coming from c1
         let prev = if path.len() > 2 {
             Some(&path[path.len() - 2])
@@ -184,14 +224,8 @@ fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
                 None => true,
             },
             Tile::Wall if pos == c2 => match prev {
-                Some(&prev) => {
-                    println!("Going through second cheat node, previous node is {prev}, first cheat node is {c1}");
-                    c1 == prev
-                }
-                None => {
-                    println!("Reached second cheat node, but there is no prev");
-                    true
-                }
+                Some(&prev) => c1 == prev,
+                None => true,
             },
             Tile::Wall if pos != c1 && pos != c2 => false,
             Tile::Wall => unreachable!(),
@@ -202,7 +236,7 @@ fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
         }
 
         if pos == dest {
-            return path;
+            return (path, distances);
         }
 
         queue.extend(ALL_DIRECTIONS.iter().filter_map(|&dir| {
@@ -223,13 +257,13 @@ fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
         }));
     }
 
-    vec![]
+    (vec![], distances)
 }
 
 pub fn day20(input: String) {
     let grid = Grid::parse(&input);
-    let cheats = grid.cheats();
-    let no_cheats_path = bfs(&grid, &Cheat(0, 0));
+    let (no_cheats_path, distances) = bfs(&grid, &Cheat(0, 0));
+    let cheats = grid.cheats_from_initial_path(&no_cheats_path, &distances);
     let start_cost = no_cheats_path.len();
     println!("Initial cost: {start_cost}");
     println!("Possible cheats: {}", cheats.len());
@@ -246,14 +280,13 @@ pub fn day20(input: String) {
         let handle = std::thread::spawn(move || {
             let mut econ_map = HashMap::new();
             for cheat in chunk.iter() {
-                let with_cheat = bfs(&grid, &cheat);
+                let (with_cheat, _) = bfs(&grid, &cheat);
                 let n = with_cheat.len();
                 let diff = start_cost - n;
                 if diff > 0 && n > 0 {
                     econ_map.entry(diff).and_modify(|v| *v += 1).or_insert(1);
                 }
             }
-
             econ_map
                 .iter()
                 .fold(0, |acc, (&k, v)| if k >= 100 { acc + v } else { acc })
