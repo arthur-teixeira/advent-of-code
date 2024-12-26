@@ -38,13 +38,13 @@ struct Grid {
     size: usize,
 }
 
-#[derive(Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 struct Cheat(usize, usize);
-impl PartialEq for Cheat {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1 || self.1 == other.0 && self.0 == other.1
-    }
-}
+// impl PartialEq for Cheat {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.0 == other.0 && self.1 == other.1 || self.1 == other.0 && self.0 == other.1
+//     }
+// }
 
 impl Grid {
     fn parse(input: &str) -> Grid {
@@ -78,7 +78,7 @@ impl Grid {
         }
     }
 
-    fn draw_cheat(&self, cheat: Cheat) {
+    fn draw_cheat(&self, cheat: &Cheat, path: &Vec<usize>) {
         let Cheat(c1, c2) = cheat;
         for i in 0..self.tiles.len() {
             if i % self.size == 0 {
@@ -86,8 +86,9 @@ impl Grid {
             }
 
             let v = match self.tiles[i] {
-                _ if i == c1 => '1',
-                _ if i == c2 => '2',
+                _ if i == *c1 => '1',
+                _ if i == *c2 => '2',
+                _ if path.contains(&i) => 'O',
                 Tile::End => 'E',
                 Tile::Wall => '#',
                 Tile::Free => '.',
@@ -113,6 +114,9 @@ impl Grid {
     }
 
     fn is_valid(&self, initial_pos: usize, next_pos: usize) -> bool {
+        if self.tiles[next_pos] == Tile::Wall {
+            return false;
+        }
         for dir in ALL_DIRECTIONS {
             if self.allowed(next_pos, dir) {
                 let next_next = self.next_pos(next_pos, dir);
@@ -150,25 +154,51 @@ impl Grid {
     }
 }
 
-fn bfs(grid: &Grid, cheat: Option<Cheat>) -> Vec<usize> {
+fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
     let mut queue = VecDeque::new();
     let dest = grid.end();
     queue.push_back((grid.start(), vec![]));
     let mut seen = HashSet::new();
 
     while let Some((pos, path)) = queue.pop_front() {
-        match grid.tiles[pos] {
-            Tile::Wall => {
-                if let Some(Cheat(c1, c2)) = cheat {
-                    if pos != c1 && pos != c2 {
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-            }
-            _ => {}
+        // We can only ignore c2 if coming from c1
+        let prev = if path.len() > 2 {
+            Some(&path[path.len() - 2])
+        } else {
+            None
         };
+
+        let &Cheat(c1, c2) = cheat;
+        let ignore_wall = match grid.tiles[pos] {
+            // If we have a cheat, check to see if we are at the first node
+            // If it is the first node, ignore that it is a wall
+            // If it is the second node, check if we are coming from the first node
+            // If so, ignore that it is a wall
+            // Else, ignore cheat and discard path
+            Tile::Free => true,
+            Tile::Start => true,
+            Tile::End => true,
+            Tile::Wall if pos == c1 => match prev {
+                Some(&prev) => prev != c2,
+                None => true
+            },
+            Tile::Wall if pos == c2 => match prev {
+                Some(&prev) => {
+                    println!("Going through second cheat node, previous node is {prev}, first cheat node is {c1}");
+                    c1 == prev
+                }
+                None => {
+                    println!("Reached second cheat node, but there is no prev");
+                    true
+                }
+            },
+            Tile::Wall if pos != c1 && pos != c2 => false,
+            Tile::Wall => unreachable!(),
+        };
+
+        if !ignore_wall {
+            continue;
+        }
 
         if pos == dest {
             return path;
@@ -194,24 +224,35 @@ fn bfs(grid: &Grid, cheat: Option<Cheat>) -> Vec<usize> {
 pub fn day20(input: String) {
     let grid = Grid::parse(&input);
     let cheats = grid.cheats();
-    let no_cheats_path = bfs(&grid, None);
+    let no_cheats_path = bfs(&grid, &Cheat(0, 0));
     let start_cost = no_cheats_path.len();
+    println!("Initial cost: {start_cost}");
     let mut econ_map: HashMap<usize, usize> = HashMap::new();
 
     for cheat in cheats {
-        let with_cheat = bfs(&grid, Some(cheat));
+        let with_cheat = bfs(&grid, &cheat);
         let n = with_cheat.len();
         let diff = start_cost - n;
         if diff > 0 {
+            if diff == 64 {
+                grid.draw_cheat(&cheat, &with_cheat);
+            }
+
             econ_map.entry(diff).and_modify(|v| *v += 1).or_insert(1);
         }
     }
 
-    for (k, v) in econ_map {
-        if v == 1 {
+    for (k, v) in econ_map.iter().sorted() {
+        if *v == 1 {
             println!("There is one cheat that saves {k} picoseconds");
         } else {
             println!("There are {v} cheats that save {k} picoseconds");
         }
     }
+
+    // let c = Cheat(111, 110);
+    // let p = bfs(&grid, &c);
+    // grid.draw_cheat(&c, &p);
+    // let e = start_cost - p.len();
+    // println!("Saved {e} picoseconds");
 }
