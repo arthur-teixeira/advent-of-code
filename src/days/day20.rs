@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    sync::{Arc, Mutex},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Tile {
@@ -109,10 +112,6 @@ impl Grid {
         self.tiles.iter().position(|t| *t == Tile::End).unwrap()
     }
 
-    fn idx(&self, pos: (usize, usize)) -> usize {
-        pos.0 * self.size + pos.1
-    }
-
     fn is_valid(&self, initial_pos: usize, next_pos: usize) -> bool {
         if self.tiles[next_pos] == Tile::Wall {
             return false;
@@ -169,18 +168,20 @@ fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
         };
 
         let &Cheat(c1, c2) = cheat;
+        let at_first_cheat_node = pos == c1;
         let ignore_wall = match grid.tiles[pos] {
             // If we have a cheat, check to see if we are at the first node
             // If it is the first node, ignore that it is a wall
             // If it is the second node, check if we are coming from the first node
             // If so, ignore that it is a wall
             // Else, ignore cheat and discard path
+            // TODO: If we reach the first cheat node, force path to go to second cheat node
             Tile::Free => true,
             Tile::Start => true,
             Tile::End => true,
             Tile::Wall if pos == c1 => match prev {
-                Some(&prev) => prev != c2,
-                None => true
+                Some(&prev) => !(prev == c2),
+                None => true,
             },
             Tile::Wall if pos == c2 => match prev {
                 Some(&prev) => {
@@ -207,6 +208,10 @@ fn bfs(grid: &Grid, cheat: &Cheat) -> Vec<usize> {
         queue.extend(ALL_DIRECTIONS.iter().filter_map(|&dir| {
             if grid.allowed(pos, dir) {
                 let next_pos = grid.next_pos(pos, dir);
+                if at_first_cheat_node && next_pos != c2 {
+                    return None;
+                }
+
                 if seen.insert(next_pos) {
                     let mut np = path.clone();
                     np.push(next_pos);
@@ -227,32 +232,47 @@ pub fn day20(input: String) {
     let no_cheats_path = bfs(&grid, &Cheat(0, 0));
     let start_cost = no_cheats_path.len();
     println!("Initial cost: {start_cost}");
-    let mut econ_map: HashMap<usize, usize> = HashMap::new();
+    println!("Possible cheats: {}", cheats.len());
+    let econ_map: Arc<Mutex<HashMap<usize, usize>>> = Arc::new(Mutex::new(HashMap::new()));
+    let threads = std::thread::available_parallelism().expect("Expected num threads");
+    let chunks = cheats
+        .chunks(cheats.len() / threads)
+        .map(|c| c.to_vec())
+        .collect_vec();
 
-    for cheat in cheats {
-        let with_cheat = bfs(&grid, &cheat);
-        let n = with_cheat.len();
-        let diff = start_cost - n;
-        if diff > 0 {
-            if diff == 64 {
-                grid.draw_cheat(&cheat, &with_cheat);
+    let grid = Arc::new(grid);
+    let mut handles = vec![];
+    for chunk in chunks {
+        let econ_map = econ_map.clone();
+        let grid = grid.clone();
+        let handle = std::thread::spawn(move || {
+            for cheat in chunk.iter() {
+                let with_cheat = bfs(&grid, &cheat);
+                let n = with_cheat.len();
+                let diff = start_cost - n;
+                if diff > 0 && n > 0 {
+                    econ_map
+                        .lock()
+                        .unwrap()
+                        .entry(diff)
+                        .and_modify(|v| *v += 1)
+                        .or_insert(1);
+                }
             }
-
-            econ_map.entry(diff).and_modify(|v| *v += 1).or_insert(1);
-        }
+        });
+        handles.push(handle);
     }
 
-    for (k, v) in econ_map.iter().sorted() {
-        if *v == 1 {
-            println!("There is one cheat that saves {k} picoseconds");
-        } else {
-            println!("There are {v} cheats that save {k} picoseconds");
-        }
+    for h in handles {
+        h.join().unwrap();
     }
 
-    // let c = Cheat(111, 110);
-    // let p = bfs(&grid, &c);
-    // grid.draw_cheat(&c, &p);
-    // let e = start_cost - p.len();
-    // println!("Saved {e} picoseconds");
+    let econ_bigger_than_100 =
+        econ_map
+            .lock()
+            .unwrap()
+            .iter()
+            .fold(0, |acc, (&k, v)| if k >= 100 { acc + v } else { acc });
+
+    println!("Part 1: {econ_bigger_than_100}");
 }
