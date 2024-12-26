@@ -233,7 +233,6 @@ pub fn day20(input: String) {
     let start_cost = no_cheats_path.len();
     println!("Initial cost: {start_cost}");
     println!("Possible cheats: {}", cheats.len());
-    let econ_map: Arc<Mutex<HashMap<usize, usize>>> = Arc::new(Mutex::new(HashMap::new()));
     let threads = std::thread::available_parallelism().expect("Expected num threads");
     let chunks = cheats
         .chunks(cheats.len() / threads)
@@ -243,36 +242,29 @@ pub fn day20(input: String) {
     let grid = Arc::new(grid);
     let mut handles = vec![];
     for chunk in chunks {
-        let econ_map = econ_map.clone();
         let grid = grid.clone();
         let handle = std::thread::spawn(move || {
+            let mut econ_map = HashMap::new();
             for cheat in chunk.iter() {
                 let with_cheat = bfs(&grid, &cheat);
                 let n = with_cheat.len();
                 let diff = start_cost - n;
                 if diff > 0 && n > 0 {
-                    econ_map
-                        .lock()
-                        .unwrap()
-                        .entry(diff)
-                        .and_modify(|v| *v += 1)
-                        .or_insert(1);
+                    econ_map.entry(diff).and_modify(|v| *v += 1).or_insert(1);
                 }
             }
+
+            econ_map
+                .iter()
+                .fold(0, |acc, (&k, v)| if k >= 100 { acc + v } else { acc })
         });
         handles.push(handle);
     }
 
+    let mut acc = 0;
     for h in handles {
-        h.join().unwrap();
+        acc += h.join().unwrap();
     }
 
-    let econ_bigger_than_100 =
-        econ_map
-            .lock()
-            .unwrap()
-            .iter()
-            .fold(0, |acc, (&k, v)| if k >= 100 { acc + v } else { acc });
-
-    println!("Part 1: {econ_bigger_than_100}");
+    println!("Part 1: {acc}");
 }
